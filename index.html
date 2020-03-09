@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <title>Verify Tahoe Land Use</title>
+
+    <style>
+      html,
+      body,
+      #viewDiv {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+      }
+        
+      #infoDiv {
+        position: absolute;
+        top: 15px;
+        left: 60px;
+      }
+      #infoDiv input {
+        border: none;
+        box-shadow: rgba(0, 0, 0, 0.3) 0px 1px 2px;
+      }
+
+      .esri-widget--button.active,
+      .esri-widget--button.active:hover,
+      .esri-widget--button.active:focus {
+        cursor: default;
+        background-color: #999696;
+      }
+      .esri-widget--button.active path,
+      .esri-widget--button.active:hover path,
+      .esri-widget--button.active:focus path {
+        fill: #e4e4e4;
+      }
+    </style>
+
+    <link
+      rel="stylesheet"
+      href="https://js.arcgis.com/4.13/esri/themes/light/main.css"
+    />
+    <script src="https://js.arcgis.com/4.13/"></script>
+
+    <script>
+      require([
+        "esri/config",
+        "esri/Map",
+        "esri/views/MapView",
+        "esri/widgets/FeatureForm",
+        "esri/layers/FeatureLayer",
+        "esri/layers/TileLayer",
+        "esri/widgets/Measurement",
+        "esri/widgets/Expand",
+        "esri/widgets/BasemapGallery",
+        "esri/widgets/BasemapToggle",
+        "esri/widgets/Search",
+        "esri/widgets/LayerList",
+        "esri/widgets/LayerList/LayerListViewModel",
+        "esri/widgets/Home",
+        "esri/widgets/Legend",
+        "esri/widgets/Print"
+      ], function(
+        esriConfig,
+        Map,
+        MapView,
+        FeatureForm,
+        FeatureLayer,
+        TileLayer,
+        Measurement,
+        Expand,
+        BasemapGallery,
+        BasemapToggle,
+        Search,
+        LayerList,
+        LayerListVM,
+        Home,
+        Legend,
+        Print
+      ) {
+          {
+        esriConfig.portalUrl = "https://maps.trpa.org/portal";
+            };
+            
+        let highlight, editFeature;
+
+        // create the map instance
+        var map = new Map({
+            basemap: "topo",
+            });
+          
+        var view = new MapView({
+              map: map,  // The WebMap instance created above
+              container: "viewDiv",
+              center: [-120.01,38.92],
+              zoom: 13
+            });
+          
+        const landuseLayer = new FeatureLayer({
+          portalItem: {
+            id: "c7fac0d4075a4eb8803fba6660a55898"
+          }
+        });
+          
+        map.add(landuseLayer);
+          
+        // Add a new feature form with grouped fields
+        const form = new FeatureForm({
+          container: "form",
+          layer: landuseLayer,
+          fieldConfig: [
+                {     
+                name: "TRPA_LANDUSE_DESCRIPTION",
+                  label: "Existing Land Use"
+                }
+              ]
+        });
+          
+        // Disable popup
+        view.popup.autoOpenEnabled = true;
+
+        view.on("click", function(event) {
+          // Unselect any currently selected features
+          unselectFeature();
+          // Listen for when the user clicks on the view
+          view.hitTest(event).then(function(response) {
+            // If user selects a feature, select it
+            const results = response.results;
+            if (
+              results.length > 0 &&
+              results[0].graphic &&
+              results[0].graphic.layer === landuseLayer
+            ) {
+              selectFeature(
+                results[0].graphic.attributes[landuseLayer.objectIdField]
+              );
+            } else {
+              // Hide the form and show the info div
+              document.getElementById("update").classList.add("esri-hidden");
+            }
+          });
+        });
+
+        // Function to unselect features
+        function unselectFeature() {
+          if (highlight) {
+            highlight.remove();
+          }
+        }
+
+        // Highlight the clicked feature and display
+        // its attributes in the featureform.
+        function selectFeature(objectId) {
+          // query feature from the server
+          landuseLayer
+            .queryFeatures({
+              objectIds: [objectId],
+              outFields: ["*"],
+              returnGeometry: true
+            })
+            .then(function(results) {
+              if (results.features.length > 0) {
+                editFeature = results.features[0];
+
+                // display the attributes of selected feature in the form
+                form.feature = editFeature;
+
+                // highlight the feature on the view
+                view.whenLayerView(editFeature.layer).then(function(layerView) {
+                  highlight = layerView.highlight(editFeature);
+                });
+
+                if (
+                  document
+                    .getElementById("update")
+                    .classList.contains("esri-hidden")
+                ) {
+                  document.getElementById("info").classList.add("esri-hidden");
+                  document
+                    .getElementById("update")
+                    .classList.remove("esri-hidden");
+                }
+              }
+            });
+        }
+
+        // Listen to the feature form's submit event.
+        form.on("submit", function() {
+          if (editFeature) {
+            // Grab updated attributes from the form.
+            const updated = form.getValues();
+
+            // Loop through updated attributes and assign
+            // the updated values to feature attributes.
+            Object.keys(updated).forEach(function(name) {
+              editFeature.attributes[name] = updated[name];
+            });
+
+            // Setup the applyEdits parameter with updates.
+            const edits = {
+              updateFeatures: [editFeature]
+            };
+            applyAttributeUpdates(edits);
+          }
+        });
+
+        // Call FeatureLayer.applyEdits() with specified params.
+        function applyAttributeUpdates(params) {
+          document.getElementById("btnUpdate").style.cursor = "progress";
+          landuseLayer
+            .applyEdits(params)
+            .then(function(editsResult) {
+              // Get the objectId of the newly added feature.
+              // Call selectFeature function to highlight the new feature.
+              if (editsResult.addFeatureResults.length > 0) {
+                const objectId = editsResult.addFeatureResults[0].objectId;
+                selectFeature(objectId);
+              }
+              document.getElementById("btnUpdate").style.cursor = "pointer";
+            })
+            .catch(function(error) {
+              console.log("===============================================");
+              console.error(
+                "[ applyEdits ] FAILURE: ",
+                error.code,
+                error.name,
+                error.message
+              );
+              console.log("error = ", error);
+              document.getElementById("btnUpdate").style.cursor = "pointer";
+            });
+        }
+
+        document.getElementById("btnUpdate").onclick = function() {
+          // Fires feature form's submit event.
+          form.submit();
+        };
+
+        view.ui.add("update", "top-right");
+        view.ui.add("info", {
+          position: "top-left",
+          index: 1
+        });
+          
+//        // 1940 aerial image tile layer
+//        var layer1940 = new TileLayer({
+//          url: "https://maps.trpa.org/server/rest/services/1940_Imagery/MapServer",
+//          title : "1940",
+//          visible: true
+//        }); 
+          
+//        // parcel feature layer
+//        var layerParcels = new FeatureLayer({
+//          url: "https://maps.trpa.org/server/rest/services/Parcels/MapServer/0",
+//          title : "Parcels",
+//          visible: true
+//        });
+//          
+//        // zoning feature layer
+//        var layerZoning = new FeatureLayer({
+//          url: "https://maps.trpa.org/server/rest/services/Zoning/MapServer",
+//          title : "Zoning",
+//          visible: true
+//        }); 
+//        
+//        map.add(layer1940);
+//        map.add(layerZoning)
+//        map.add(layerParcels);
+          
+        // Add a legend instance to the panel of a
+        // ListItem in a LayerList instance
+        const layerList = new LayerList({
+              view: view,
+              listItemCreatedFunction: function(event) {
+                const item = event.item;
+                if (item.layer.type != "group") {
+                  // don't show legend twice
+                  item.panel = {
+                    content: "legend",
+                    open: false
+                  };
+                }
+              }
+        });
+            
+        view.ui.add(layerList, "top-right");
+
+        // Create collapasable button for Table of Contents
+        var layerListExpand = new Expand({
+                expandIconClass: "esri-icon-layers",  // see https://developers.arcgis.com/javascript/latest/guide/esri-icon-font/
+                expandTooltip: "Layer List",
+                view: view,
+                autoCollapse: true,
+                content: layerList.domNode
+            });
+
+        // add layer list button to the top right corner of the view
+        view.ui.add(layerListExpand, "top-right");
+
+        // function to create print service
+        view.when(function() {
+            var print = new Print({
+                container: document.createElement("div"),
+                view: view,
+                // specify print service url
+                printServiceUrl:"https://utility.arcgisonline.com/arcgis/rest/services/Utilities/PrintingTools/GPServer/Export%20Web%20Map%20Task"
+        });
+
+           
+            // Create Print Button
+            var printExpand = new Expand({
+                expandIconClass: "esri-icon-printer",  // see https://developers.arcgis.com/javascript/latest/guide/esri-icon-font/
+                expandTooltip: "Print",
+                view: view,
+                autoCollapse: true,
+                content: print.domNode
+                });
+
+            // Add print widget to the top right corner of the view
+            view.ui.add(printExpand, "top-right");
+            });
+            
+            var parcels = new FeatureLayer({
+                url: "https://maps.trpa.org/server/rest/services/Parcels/MapServer/0",
+//                popupTemplate: {
+//                // autocasts as new PopupTemplate()
+//                    title: "Parcel: {APN}",
+//                    overwriteActions: false
+//                }
+            });
+        
+            // Create Search Widget
+            var searchWidget = new Search({
+              view: view,
+              allPlaceholder: "Address or APN",
+              locationEnabled: false,
+              includeDefaultSources: false,
+              popupEnabled: false,
+              sources: [
+                {
+                  layer: parcels,
+                  searchFields: ["APO_ADDRESS"],
+                  displayField: "APO_ADDRESS",
+                  exactMatch: false,
+                  outFields: ["APO_ADDRESS"],
+                  name: "Address",
+                  zoomScale: 24000,
+                },
+                {
+                  layer: parcels,
+                  searchFields: ["APN"],
+                  displayField: "APN",
+                  exactMatch: false,
+                  outFields: ["APN"],
+                  name: "APN",
+                  zoomScale: 24000,
+                }
+              ]
+            });
+            
+            // Add the search widget to the top left corner of the view
+            view.ui.add(searchWidget, {
+                position: "top-left"
+            });
+            
+            // move zoom buttons to top left
+            view.ui.move("zoom", "top-left");
+                
+            // Createa Home Button
+            var homeWidget = new Home({
+                view: view
+            });
+            
+            // adds the home widget to the top left corner of the MapView
+            view.ui.add(homeWidget, "top-left");            
+
+            var basemapToggle = new BasemapToggle({
+                container: document.createElement("div"),
+                view: view,
+                nextBasemap: "hybrid"  // Allows for toggling to the "hybrid" basemap
+            });
+            
+            // Create an Expand instance and set the content
+            // property to the DOM node of the basemap gallery widget
+            var bgExpand = new Expand({
+                expandIconClass: "esri-icon-basemap",  // see https://developers.arcgis.com/javascript/latest/guide/esri-icon-font
+                expandTooltip: "Toggle Basemap",
+                view: view,
+                content: basemapToggle.domNode
+            });
+
+            // Add the basemap gallery button
+            view.ui.add(bgExpand, "bottom-left"); 
+                    
+            // add a legend widget instance to the view
+            // and set the style to 'card'. This is a
+            // responsive style, which is good for mobile devices
+            // or 'classic' for PC users
+            const legend = new Expand({
+                expandIconClass: "esri-icon-layer-list",  // see https://developers.arcgis.com/javascript/latest/guide/esri-icon-font
+                expandTooltip: "Legend",
+                content: new Legend({
+                    view: view,
+                    style: "classic" // other styles include 'card'
+                    }),
+                view: view,
+                expanded: false
+            });
+            view.ui.add(legend, "bottom-left");  
+      });
+        
+	</script>
+		  <!-- Global site tag (gtag.js) - Google Analytics -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=UA-72607582-23"></script>
+	<script>
+	  window.dataLayer = window.dataLayer || [];
+	  function gtag(){dataLayer.push(arguments);}
+	  gtag('js', new Date());
+
+	  gtag('config', 'UA-72607582-23');
+	</script>
+  </head>
+  <body>
+    <div id="viewDiv"></div>
+    </div>
+          <div id="info" class="esri-widget">
+      <h3>Select a feature to begin editing</h3>
+    </div>
+
+    <div id="update" class="esri-widget esri-hidden">
+      <div id="form" class="scroller esri-component"></div>
+      <input
+        type="button"
+        class="esri-button"
+        value="Update Land Use"
+        id="btnUpdate"
+      />
+    </div>
+  </body>
+</html>
