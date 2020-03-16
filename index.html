@@ -62,6 +62,14 @@
       .landuse-item:hover {
         background-color: dimgrey;
       }
+
+    .esri-view .esri-directions {
+      position: fixed;
+      right: 15px;
+    }
+    .esri-view .esri-component.esri-attribution {
+      position: fixed;
+    }
     </style>
 
     <link
@@ -87,7 +95,12 @@
         "esri/widgets/LayerList/LayerListViewModel",
         "esri/widgets/Home",
         "esri/widgets/Legend",
-        "esri/widgets/Print"
+        "esri/widgets/Print",
+        "esri/widgets/Locate",
+        "esri/widgets/Track",
+        "esri/Graphic",
+        "esri/widgets/Compass",
+//        "esri/widgets/Directions"
       ], function(
         esriConfig,
         Map,
@@ -104,12 +117,17 @@
         LayerListVM,
         Home,
         Legend,
-        Print
+        Print,
+        Locate,
+        Track,
+        Graphic,
+        Compass,
+//        Directions
       ) {
           {
         esriConfig.portalUrl = "https://maps.trpa.org/portal";
             };
-            
+          
         // Initialize variables
         let highlight, editFeatureparcelLayerView;
         // create the map instance
@@ -270,30 +288,6 @@
           index: 1
         });
           
-//        // 1940 aerial image tile layer
-//        var layer1940 = new TileLayer({
-//          url: "https://maps.trpa.org/server/rest/services/1940_Imagery/MapServer",
-//          title : "1940",
-//          visible: true
-//        }); 
-          
-//        // parcel feature layer
-//        var layerParcels = new FeatureLayer({
-//          url: "https://maps.trpa.org/server/rest/services/Parcels/MapServer/0",
-//          title : "Parcels",
-//          visible: true
-//        });
-//          
-//        // zoning feature layer
-//        var layerZoning = new FeatureLayer({
-//          url: "https://maps.trpa.org/server/rest/services/Zoning/MapServer",
-//          title : "Zoning",
-//          visible: true
-//        }); 
-//        
-//        map.add(layer1940);
-//        map.add(layerZoning)
-//        map.add(layerParcels);
           
         // Add a legend instance to the panel of a
         // ListItem in a LayerList instance
@@ -334,108 +328,108 @@
                 printServiceUrl:"https://utility.arcgisonline.com/arcgis/rest/services/Utilities/PrintingTools/GPServer/Export%20Web%20Map%20Task"
         });
 
-           
-            // Create Print Button
-            var printExpand = new Expand({
-                expandIconClass: "esri-icon-printer",  // see https://developers.arcgis.com/javascript/latest/guide/esri-icon-font/
-                expandTooltip: "Print",
-                view: view,
-                autoCollapse: true,
-                content: print.domNode
-                });
 
-            // Add print widget to the top right corner of the view
-            view.ui.add(printExpand, "top-right");
+        // Create Print Button
+        var printExpand = new Expand({
+            expandIconClass: "esri-icon-printer",  // see https://developers.arcgis.com/javascript/latest/guide/esri-icon-font/
+            expandTooltip: "Print",
+            view: view,
+            autoCollapse: true,
+            content: print.domNode
             });
-            
-            var parcels = new FeatureLayer({
-                url: "https://maps.trpa.org/server/rest/services/Parcels/MapServer/0",
+
+        // Add print widget to the top right corner of the view
+        view.ui.add(printExpand, "top-right");
+        });
+
+        var parcels = new FeatureLayer({
+            url: "https://maps.trpa.org/server/rest/services/Parcels/MapServer/0",
 //                popupTemplate: {
 //                // autocasts as new PopupTemplate()
 //                    title: "Parcel: {APN}",
 //                    overwriteActions: false
 //                }
-            });
-        
-            // Create Search Widget
-            var searchWidget = new Search({
-              view: view,
-              allPlaceholder: "Address or APN",
-              locationEnabled: false,
-              includeDefaultSources: false,
-              popupEnabled: false,
-              sources: [
-                {
-                  layer: parcels,
-                  searchFields: ["APO_ADDRESS"],
-                  displayField: "APO_ADDRESS",
-                  exactMatch: false,
-                  outFields: ["APO_ADDRESS"],
-                  name: "Address",
-                  zoomScale: 24000,
-                },
-                {
-                  layer: parcels,
-                  searchFields: ["APN"],
-                  displayField: "APN",
-                  exactMatch: false,
-                  outFields: ["APN"],
-                  name: "APN",
-                  zoomScale: 24000,
-                }
-              ]
-            });
-            
-            // Add the search widget to the top left corner of the view
-            view.ui.add(searchWidget, {
-                position: "top-left"
-            });
-            
-            // move zoom buttons to top left
-            view.ui.move("zoom", "top-left");
-                
-            // Createa Home Button
-            var homeWidget = new Home({
-                view: view
-            });
-            
-            // adds the home widget to the top left corner of the MapView
-            view.ui.add(homeWidget, "top-left");            
+        });
 
-            var basemapToggle = new BasemapToggle({
-                container: document.createElement("div"),
-                view: view,
-                nextBasemap: "hybrid"  // Allows for toggling to the "hybrid" basemap
-            });
-            
-            // Create an Expand instance and set the content
-            // property to the DOM node of the basemap gallery widget
-            var bgExpand = new Expand({
-                expandIconClass: "esri-icon-basemap",  // see https://developers.arcgis.com/javascript/latest/guide/esri-icon-font
-                expandTooltip: "Toggle Basemap",
-                view: view,
-                content: basemapToggle.domNode
-            });
+        // Create Search Widget
+        var searchWidget = new Search({
+          view: view,
+          allPlaceholder: "Address or APN",
+          locationEnabled: false,
+          includeDefaultSources: false,
+          popupEnabled: false,
+          sources: [
+            {
+              layer: parcels,
+              searchFields: ["APO_ADDRESS"],
+              displayField: "APO_ADDRESS",
+              exactMatch: false,
+              outFields: ["APO_ADDRESS"],
+              name: "Address",
+              zoomScale: 24000,
+            },
+            {
+              layer: parcels,
+              searchFields: ["APN"],
+              displayField: "APN",
+              exactMatch: false,
+              outFields: ["APN"],
+              name: "APN",
+              zoomScale: 24000,
+            }
+          ]
+        });
 
-            // Add the basemap gallery button
-            view.ui.add(bgExpand, "bottom-left"); 
-                    
-            // add a legend widget instance to the view
-            // and set the style to 'card'. This is a
-            // responsive style, which is good for mobile devices
-            // or 'classic' for PC users
-            const legend = new Expand({
-                expandIconClass: "esri-icon-layer-list",  // see https://developers.arcgis.com/javascript/latest/guide/esri-icon-font
-                expandTooltip: "Legend",
-                content: new Legend({
-                    view: view,
-                    style: "classic" // other styles include 'card'
-                    }),
+        // Add the search widget to the top left corner of the view
+        view.ui.add(searchWidget, {
+            position: "top-left"
+        });
+
+        // move zoom buttons to top left
+        view.ui.move("zoom", "top-left");
+
+        // Createa Home Button
+        var homeWidget = new Home({
+            view: view
+        });
+
+        // adds the home widget to the top left corner of the MapView
+        view.ui.add(homeWidget, "top-left");            
+
+        var basemapToggle = new BasemapToggle({
+            container: document.createElement("div"),
+            view: view,
+            nextBasemap: "hybrid"  // Allows for toggling to the "hybrid" basemap
+        });
+
+        // Create an Expand instance and set the content
+        // property to the DOM node of the basemap gallery widget
+        var bgExpand = new Expand({
+            expandIconClass: "esri-icon-basemap",  // see https://developers.arcgis.com/javascript/latest/guide/esri-icon-font
+            expandTooltip: "Toggle Basemap",
+            view: view,
+            content: basemapToggle.domNode
+        });
+
+        // Add the basemap gallery button
+        view.ui.add(bgExpand, "bottom-left"); 
+
+        // add a legend widget instance to the view
+        // and set the style to 'card'. This is a
+        // responsive style, which is good for mobile devices
+        // or 'classic' for PC users
+        const legend = new Expand({
+            expandIconClass: "esri-icon-layer-list",  // see https://developers.arcgis.com/javascript/latest/guide/esri-icon-font
+            expandTooltip: "Legend",
+            content: new Legend({
                 view: view,
-                expanded: false
-            });
-            view.ui.add(legend, "bottom-left");  
-            
+                style: "classic" // other styles include 'card'
+                }),
+            view: view,
+            expanded: false
+        });
+        view.ui.add(legend, "bottom-left");  
+
         const landuseNodes = document.querySelectorAll(`.landuse-item`);
         const landuseElement = document.getElementById("landuse-filter");
 
@@ -462,6 +456,7 @@
         const landuseExpand = new Expand({
             view: view,
             content: landuseElement,
+            expandTooltip: "Filter Land Use Type",
             expandIconClass: "esri-icon-filter",
             group: "top-left"
           });
@@ -474,22 +469,70 @@
           });
         view.ui.add(landuseExpand, "top-left");
         });
-      }); 
+          
+      var locate = new Locate({
+        view: view,
+        useHeadingEnabled: false,
+        goToOverride: function(view, options) {
+          options.target.scale = 1500;  // Override the default map scale
+          return view.goTo(options.target);
+        }
+      });
+
+      view.ui.add(locate, "top-left");
+        
+      var track = new Track({
+        view: view,
+        graphic: new Graphic({
+          symbol: {
+            type: "simple-marker",
+            size: "12px",
+            color: "green",
+            outline: {
+              color: "#efefef",
+              width: "1.5px"
+            }
+          }
+        }),
+        useHeadingEnabled: false  // Don't change orientation of the map
+      });
+
+      view.ui.add(track, "top-left");
+
+      var compass = new Compass({
+          view: view
+        });
+
+      // adds the compass to the top left corner of the MapView
+      view.ui.add(compass, "top-left");
+
+//      var directions = new Directions({
+//        view: view
+//      });
+//          
+//      const directionsExpand = new Expand({
+//        view: view,
+//        content: directions,
+//        expandTooltip: "Get Directions",
+//        expandIconClass: "esri-icon-directions",
+//        group: "top-right"
+//      });
+//        
+//      view.ui.add(directionsExpand, "top-right");
+//          
+      });
     </script>
   </head>
 
   <body>
-
     <div id="viewDiv"></div>
     <div id="landuse-filter" class="esri-widget">
       <div class="landuse-item visible-landuse" data-landuse= " = 'Vacant'">Vacant</div>
-      <div class="landuse-item visible-landuse" data-landuse= " IN ('Single Family Residential', 'Multi-Family Residential','Condominium
-', 'Condominium Common Area')">Residential</div>
+      <div class="landuse-item visible-landuse" data-landuse= " IN ('Single Family Residential', 'Multi-Family Residential','Condominium', 'Condominium Common Area')">Residential</div>
       <div class="landuse-item visible-landuse" data-landuse= " IN ('Commercial', 'Mixed Use', 'Tourist Accommodation')">Commercial</div>
-              <div class="landuse-item visible-landuse" data-landuse= " IN ('Open Space', 'Recreation', 'Public Service')">Public</div>
+      <div class="landuse-item visible-landuse" data-landuse= " IN ('Open Space', 'Recreation', 'Public Service')">Public</div>
     </div>
-    </div>
-          <div id="info" class="esri-widget">
+    <div id="info" class="esri-widget">
       <h3>Select a feature to begin editing</h3>
     </div>
 
