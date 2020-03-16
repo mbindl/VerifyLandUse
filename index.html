@@ -39,6 +39,29 @@
       .esri-widget--button.active:focus path {
         fill: #e4e4e4;
       }
+        
+      #landuse-filter {
+        height: 160px;
+        width: 100%;
+        visibility: hidden;
+      }
+
+      .landuse-item {
+        width: 100%;
+        padding: 12px;
+        text-align: center;
+        vertical-align: baseline;
+        cursor: pointer;
+        height: 40px;
+      }
+
+      .landuse-item:focus {
+        background-color: dimgrey;
+      }
+
+      .landuse-item:hover {
+        background-color: dimgrey;
+      }
     </style>
 
     <link
@@ -87,8 +110,8 @@
         esriConfig.portalUrl = "https://maps.trpa.org/portal";
             };
             
-        let highlight, editFeature;
-
+        // Initialize variables
+        let highlight, editFeatureparcelLayerView;
         // create the map instance
         var map = new Map({
             basemap: "topo",
@@ -412,21 +435,59 @@
                 expanded: false
             });
             view.ui.add(legend, "bottom-left");  
-      });
-        
-	</script>
-		  <!-- Global site tag (gtag.js) - Google Analytics -->
-	<script async src="https://www.googletagmanager.com/gtag/js?id=UA-72607582-23"></script>
-	<script>
-	  window.dataLayer = window.dataLayer || [];
-	  function gtag(){dataLayer.push(arguments);}
-	  gtag('js', new Date());
+            
+        const landuseNodes = document.querySelectorAll(`.landuse-item`);
+        const landuseElement = document.getElementById("landuse-filter");
 
-	  gtag('config', 'UA-72607582-23');
-	</script>
+        // click event handler for landuse choices
+        landuseElement.addEventListener("click", filterByLandUse);
+
+        // User clicked on landuse to set an attribute filter
+        function filterByLandUse(event) {
+          const selectedLanduse = event.target.getAttribute("data-landuse");
+          parcelLayerView.filter = {
+            where: "TRPA_LANDUSE_DESCRIPTION" + selectedLanduse
+          };
+        }
+        
+        // after land use layer loads create the widget
+        view.whenLayerView(landuseLayer).then(function(layerView) {
+          // land use layer loaded
+          // get a reference to the land use layerview
+          parcelLayerView = layerView;
+
+        // set up UI items
+        landuseElement.style.visibility = "visible";
+        
+        const landuseExpand = new Expand({
+            view: view,
+            content: landuseElement,
+            expandIconClass: "esri-icon-filter",
+            group: "top-left"
+          });
+        
+        //clear the filters when user closes the expand widget
+        landuseExpand.watch("expanded", function() {
+            if (!landuseExpand.expanded) {
+              parcelLayerView.filter = null;
+            }
+          });
+        view.ui.add(landuseExpand, "top-left");
+        });
+      }); 
+    </script>
   </head>
+
   <body>
+
     <div id="viewDiv"></div>
+    <div id="landuse-filter" class="esri-widget">
+      <div class="landuse-item visible-landuse" data-landuse= " = 'Vacant'">Vacant</div>
+      <div class="landuse-item visible-landuse" data-landuse= " IN ('Single Family Residential', 'Multi-Family Residential','Condominium
+', 'Condominium Common Area')">Residential</div>
+      <div class="landuse-item visible-landuse" data-landuse= " IN ('Commercial', 'Mixed Use', 'Tourist Accommodation')">Commercial</div>
+              <div class="landuse-item visible-landuse" data-landuse= " IN ('Open Space', 'Recreation', 'Public Service')">Public</div>
+    </div>
     </div>
           <div id="info" class="esri-widget">
       <h3>Select a feature to begin editing</h3>
