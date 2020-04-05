@@ -9,59 +9,59 @@
     <title>Verify Tahoe Land Use</title>
 
     <style>
-      html,
-      body,
-      #viewDiv {
-        height: 100%;
-        width: 100%;
-        margin: 0;
-        padding: 0;
-      }
-        
-      #infoDiv {
-        position: absolute;
-        top: 15px;
-        left: 60px;
-      }
-      #infoDiv input {
-        border: none;
-        box-shadow: rgba(0, 0, 0, 0.3) 0px 1px 2px;
-      }
+    html,
+    body,
+    #viewDiv {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    }
 
-      .esri-widget--button.active,
-      .esri-widget--button.active:hover,
-      .esri-widget--button.active:focus {
-        cursor: default;
-        background-color: #999696;
-      }
-      .esri-widget--button.active path,
-      .esri-widget--button.active:hover path,
-      .esri-widget--button.active:focus path {
-        fill: #e4e4e4;
-      }
-        
-      #landuse-filter {
+    #infoDiv {
+    position: absolute;
+    top: 15px;
+    left: 60px;
+    }
+    #infoDiv input {
+    border: none;
+    box-shadow: rgba(0, 0, 0, 0.3) 0px 1px 2px;
+    }
+
+    .esri-widget--button.active,
+    .esri-widget--button.active:hover,
+    .esri-widget--button.active:focus {
+    cursor: default;
+    background-color: #999696;
+    }
+    .esri-widget--button.active path,
+    .esri-widget--button.active:hover path,
+    .esri-widget--button.active:focus path {
+    fill: #e4e4e4;
+    }
+
+    #landuse-filter {
         height: 160px;
         width: 100%;
         visibility: hidden;
-      }
+    }
 
-      .landuse-item {
+    .landuse-item {
         width: 100%;
         padding: 12px;
         text-align: center;
         vertical-align: baseline;
         cursor: pointer;
         height: 40px;
-      }
+    }
 
-      .landuse-item:focus {
-        background-color: dimgrey;
-      }
+    .landuse-item:focus {
+    background-color: dimgrey;
+    }
 
-      .landuse-item:hover {
-        background-color: dimgrey;
-      }
+    .landuse-item:hover {
+    background-color: dimgrey;
+    }
 
     .esri-view .esri-directions {
       position: fixed;
@@ -70,8 +70,31 @@
     .esri-view .esri-component.esri-attribution {
       position: fixed;
     }
-    </style>
+      #gridDiv {
+        padding: 10px;
+        max-width: 600px;
+      }
 
+      #clearButton {
+        margin-top: 5px;
+        display: none;
+      }
+
+      .table-expand{
+            width: 700px;
+        }
+
+      .dgrid {
+        height: auto !important;
+      }
+
+      .dgrid .dgrid-scroller {
+        position: relative;
+        max-height: 150px;
+        overflow: auto;
+      }
+
+    </style>
     <link
       rel="stylesheet"
       href="https://js.arcgis.com/4.13/esri/themes/light/main.css"
@@ -99,8 +122,9 @@
         "esri/widgets/Locate",
         "esri/widgets/Track",
         "esri/Graphic",
-        "esri/widgets/Compass",
-//        "esri/widgets/Directions"
+        "esri/widgets/Editor",
+        "esri/layers/support/LabelClass",
+        "dgrid/Grid"  
       ], function(
         esriConfig,
         Map,
@@ -121,174 +145,400 @@
         Locate,
         Track,
         Graphic,
-        Compass,
-//        Directions
+        Editor,
+        LabelClass,
+        Grid
       ) {
           {
         esriConfig.portalUrl = "https://maps.trpa.org/portal";
             };
           
         // Initialize variables
-        let highlight, editFeatureparcelLayerView;
+        let highlight, editFeatureparcelLayerView, editor, features, grid;
+        
         // create the map instance
         var map = new Map({
-            basemap: "topo",
+            basemap: "topo-vector",
             });
-          
+        
+        // create teh view for the map
         var view = new MapView({
               map: map,  // The WebMap instance created above
               container: "viewDiv",
               center: [-120.01,38.92],
-              zoom: 13
+              zoom: 13,
+              // set all popups to dock in the bottom right
+              popup: {
+                dockEnabled: true,
+                dockOptions: {
+                  // sets docking spot to top left
+                  position: "bottom-right"
+                }
+              }
             });
+        
+        // construct parcel land use layer from portal item
+        const imperviousLayer = new FeatureLayer({
+          url: "https://maps.trpa.org/server/rest/services/Impervious_Surface_Cached/MapServer/0",
+          title: "Impervious Surface",
+          outFields: ["*"],
+        });
           
+        // add land use layer to the map
+        map.add(imperviousLayer);
+        
+        // set to off in layer list
+        imperviousLayer.visible = false;
+          
+                // construct parcel land use layer from portal item
+        const regionalLayer = new FeatureLayer({
+          url: "https://maps.trpa.org/server/rest/services/LocalPlan/MapServer/9",
+          title: "Regional Land Use",
+          outFields: ["*"],
+        });
+          
+        // add land use layer to the map
+        map.add(regionalLayer);
+        
+        // set to off in layer list
+        regionalLayer.visible = false;
+           
+        // Create the zoning layer
+        const zoningLayer = new FeatureLayer({
+            url:
+            "https://maps.trpa.org/server/rest/services/Zoning/MapServer"
+          ,
+            outFields: ["*"]
+        });
+          
+        map.add(zoningLayer);
+        
+        zoningLayer.visible = false;
+        
+        const zoneLabelClass = new LabelClass({
+              labelExpressionInfo: { expression: "$feature.ZONING_DESCRIPTION" },
+              symbol: {
+                type: "text",  // autocasts as new TextSymbol()
+                color: "black",
+                haloSize: 1,
+                haloColor: "white",
+            font: {  // autocast as new Font()
+               family: "Ubuntu Light",
+               size: 10,
+               style: "italic"
+             }
+              },
+            labelPlacement: "center-center",
+            minScale: 10000
+            });
+
+          zoningLayer.labelingInfo = [ zoneLabelClass ];
+          
+        const gridExpand = new Expand({
+          expandTooltip: "Show Zoning",
+          expanded: false,
+          view: view,
+          content: document.getElementById("gridDiv"),
+          expandIconClass: "esri-icon-table",
+          group: "bottom-right"
+        });
+
+        // Add grid expand to the view
+        view.ui.add(gridExpand, "bottom-right");
+
+        // call clearMap method when clear is clicked
+        const clearbutton = document.getElementById("clearButton");
+        clearbutton.addEventListener("click", clearMap);
+
+        zoningLayer.load().then(function() {
+          return createGrid().then(function(g) {
+            grid = g;
+          });
+        });
+
+        view.on("click", function(event) {
+          clearMap();
+          queryFeatures(event);
+        });
+
+        function queryFeatures(screenPoint) {
+          const point = view.toMap(screenPoint);
+
+          // Query the layer for the feature ids where the user clicked
+          zoningLayer
+            .queryObjectIds({
+              geometry: point,
+              spatialRelationship: "intersects",
+              returnGeometry: false,
+              outFields: ["*"]
+            })
+
+            .then(function(objectIds) {
+              if (!objectIds.length) {
+                return;
+              }
+
+              // Highlight the area returned from the first query
+              view.whenLayerView(zoningLayer).then(function(layerView) {
+                if (highlight) {
+                  highlight.remove();
+                }
+                highlight = layerView.highlight(objectIds);
+              });
+
+              // Query the for the related features for the features ids found
+              return zoningLayer.queryRelatedFeatures({
+                outFields: ["Category", "Use_Type", "Density", "Unit", "Notes"],
+                relationshipId: zoningLayer.relationships[0].id,
+                objectIds: objectIds
+              });
+            })
+
+            .then(function(relatedFeatureSetByObjectId) {
+              if (!relatedFeatureSetByObjectId) {
+                return;
+              }
+              // Create a grid with the data
+              Object.keys(relatedFeatureSetByObjectId).forEach(function(
+                objectId
+              ) {
+                // get the attributes of the FeatureSet
+                const relatedFeatureSet = relatedFeatureSetByObjectId[objectId];
+                const rows = relatedFeatureSet.features.map(function(feature) {
+                  return feature.attributes;
+                });
+
+                if (!rows.length) {
+                  return;
+                }
+
+                // create a new div for the grid of related features
+                // append to queryResults div inside of the gridDiv
+                const gridDiv = document.createElement("div");
+                const results = document.getElementById("queryResults");
+                results.appendChild(gridDiv);
+
+                // destroy current grid if exists
+                if (grid) {
+                  grid.destroy();
+                }
+                // create new grid to hold the results of the query
+                grid = new Grid(
+                  {
+                    columns: {
+                        Category: "Category",
+                        Use_Type: "Use",
+                        Density: "Density",
+                        Unit: "Unit",
+                        Notes: "Notes"
+                        }
+                  },
+                  gridDiv
+                );
+
+                // add the data to the grid
+                grid.renderArray(rows);
+              });
+              clearbutton.style.display = "inline";
+            })
+            .catch(function(error) {
+              console.error(error);
+            });
+        }
+
+        function clearMap() {
+          if (highlight) {
+            highlight.remove();
+          }
+          if (grid) {
+            grid.destroy();
+          }
+          clearbutton.style.display = "none";
+        }       
+
+        // create edit action for parcel land use popup
+        const editThisAction = {
+          title: "Edit Land Use",
+          id: "edit-this",
+          className: "esri-icon-edit"
+        };
+
+        // Create a popupTemplate for the land use layer and pass in a function to set its content and specify an action to handle editing the selected feature
+        const template = {
+          title: "Parcel: {APN}",
+          content:[
+              {
+          type: "fields",
+          fieldInfos: [
+                {
+                  fieldName: "TRPA_LANDUSE_DESCRIPTION",
+                  label: "Existing Land Use"
+                },
+                {
+                  fieldName: "COUNTY_LANDUSE_DESCRIPTION",
+                  label: "County Land Use"
+                },
+                {
+                  fieldName: "REGIONAL_LANDUSE",
+                  label: "Regional Land Use",
+                  },
+                {
+                  fieldName: "OWN_FULL",
+                  label: "Owner Name"
+                },
+                {
+                  fieldName: "OWNERSHIP_TYPE",
+                  label: "Ownership Type",
+                  },
+                {
+                  fieldName: "IMPERVIOUS_SURFACE_SQFT",
+                  label: "Impervious Surface",
+                  format: {
+                    digitSeparator: true,
+                    places: 0
+                  },
+                }
+                ]
+              }
+              ],
+          actions: [editThisAction],
+          lastEditInfoEnabled: true              
+        };
+        
+        // construct parcel land use layer from portal item
         const landuseLayer = new FeatureLayer({
           portalItem: {
             id: "c7fac0d4075a4eb8803fba6660a55898"
-          }
+          },
+          title: "Existing Land Use",
+          outFields: ["*"],
+          popupTemplate: template
         });
           
+        // add land use layer to the map
         map.add(landuseLayer);
-          
-        // Add a new feature form with grouped fields
-        const form = new FeatureForm({
-          container: "form",
-          layer: landuseLayer,
-          fieldConfig: [
-                {     
-                name: "TRPA_LANDUSE_DESCRIPTION",
-                  label: "Existing Land Use"
-                }
-              ]
-        });
-          
-        // Disable popup
-        view.popup.autoOpenEnabled = true;
 
-        view.on("click", function(event) {
-          // Unselect any currently selected features
-          unselectFeature();
-          // Listen for when the user clicks on the view
-          view.hitTest(event).then(function(response) {
-            // If user selects a feature, select it
-            const results = response.results;
-            if (
-              results.length > 0 &&
-              results[0].graphic &&
-              results[0].graphic.layer === landuseLayer
-            ) {
-              selectFeature(
-                results[0].graphic.attributes[landuseLayer.objectIdField]
+        // create teh editor when 
+        view.when(function() {
+          // Create the Editor with the specified layer and a list of field configurations
+          editor = new Editor({
+            view: view,
+            container: document.createElement("div"),
+            layerInfos: [
+              {
+                layer: landuseLayer,
+                fieldConfig: [
+                  {
+                    name: "TRPA_LANDUSE_DESCRIPTION",
+                    label: "Existing Land Use",
+                    hint: "Comercial, Residential, etc.."
+                  },
+                  {
+                    name: "COUNTY_LANDUSE_DESCRIPTION",
+                    label: "County Land Use",
+                    editable: false
+                  },
+                  {
+                    name: "REGIONAL_LANDUSE",
+                    label: "Regional Land Use",
+                    editable: false
+                    },
+                  {
+                    name: "OWN_FULL",
+                    label: "Owner Name",
+                    editable: false
+                  },
+                  {
+                    name: "OWNERSHIP_TYPE",
+                    label: "Ownership Type",
+                    editable: false
+                  }
+
+                ]
+              }
+            ]
+          });
+
+          // Execute each time the "Edit feature" action is clicked
+          function editThis() {
+            // If the EditorViewModel's activeWorkflow is null, make the popup not visible
+            if (!editor.viewModel.activeWorkFlow) {
+              view.popup.visible = false;
+              // Call the Editor update feature edit workflow
+
+              editor.startUpdateWorkflowAtFeatureEdit(
+                view.popup.selectedFeature
               );
-            } else {
-              // Hide the form and show the info div
-              document.getElementById("update").classList.add("esri-hidden");
+              view.ui.add(editor, "bottom-right");
+              view.popup.spinnerEnabled = false;
+            }
+
+            // We need to set a timeout to ensure the editor widget is fully rendered. We
+            // then grab it from the DOM stack
+            setTimeout(function() {
+              // Use the editor's back button as a way to cancel out of editing
+              let arrComp = editor.domNode.getElementsByClassName(
+                "esri-editor__back-button esri-interactive"
+              );
+              if (arrComp.length === 1) {
+                // Add a tooltip for the back button
+                arrComp[0].setAttribute(
+                  "title",
+                  "Cancel edits, return to popup"
+                );
+                // Add a listerner to listen for when the editor's back button is clicked
+                arrComp[0].addEventListener("click", function(evt) {
+                  // Prevent the default behavior for the back button and instead remove the editor and reopen the popup
+                  evt.preventDefault();
+                  view.ui.remove(editor);
+                  view.popup.open({
+                    features: features
+                  });
+                });
+              }
+            }, 150);
+          }
+
+          // Event handler that fires each time an action is clicked
+          view.popup.on("trigger-action", function(event) {
+            if (event.action.id === "edit-this") {
+              editThis();
             }
           });
         });
 
-        // Function to unselect features
-        function unselectFeature() {
-          if (highlight) {
-            highlight.remove();
-          }
-        }
-
-        // Highlight the clicked feature and display
-        // its attributes in the featureform.
-        function selectFeature(objectId) {
-          // query feature from the server
-          landuseLayer
-            .queryFeatures({
-              objectIds: [objectId],
-              outFields: ["*"],
-              returnGeometry: true
-            })
-            .then(function(results) {
-              if (results.features.length > 0) {
-                editFeature = results.features[0];
-
-                // display the attributes of selected feature in the form
-                form.feature = editFeature;
-
-                // highlight the feature on the view
-                view.whenLayerView(editFeature.layer).then(function(layerView) {
-                  highlight = layerView.highlight(editFeature);
-                });
-
-                if (
-                  document
-                    .getElementById("update")
-                    .classList.contains("esri-hidden")
-                ) {
-                  document.getElementById("info").classList.add("esri-hidden");
-                  document
-                    .getElementById("update")
-                    .classList.remove("esri-hidden");
-                }
-              }
-            });
-        }
-
-        // Listen to the feature form's submit event.
-        form.on("submit", function() {
-          if (editFeature) {
-            // Grab updated attributes from the form.
-            const updated = form.getValues();
-
-            // Loop through updated attributes and assign
-            // the updated values to feature attributes.
-            Object.keys(updated).forEach(function(name) {
-              editFeature.attributes[name] = updated[name];
-            });
-
-            // Setup the applyEdits parameter with updates.
-            const edits = {
-              updateFeatures: [editFeature]
-            };
-            applyAttributeUpdates(edits);
+        // Watch when the popup is visible
+        view.popup.watch("visible", function(event) {
+          // Check the Editor's viewModel state, if it is currently open and editing existing features, disable popups
+          if (editor.viewModel.state === "editing-existing-feature") {
+            view.popup.close();
+          } else {
+            // Grab the features of the popup
+            features = view.popup.features;
           }
         });
 
-        // Call FeatureLayer.applyEdits() with specified params.
-        function applyAttributeUpdates(params) {
-          document.getElementById("btnUpdate").style.cursor = "progress";
-          landuseLayer
-            .applyEdits(params)
-            .then(function(editsResult) {
-              // Get the objectId of the newly added feature.
-              // Call selectFeature function to highlight the new feature.
-              if (editsResult.addFeatureResults.length > 0) {
-                const objectId = editsResult.addFeatureResults[0].objectId;
-                selectFeature(objectId);
-              }
-              document.getElementById("btnUpdate").style.cursor = "pointer";
-            })
-            .catch(function(error) {
-              console.log("===============================================");
-              console.error(
-                "[ applyEdits ] FAILURE: ",
-                error.code,
-                error.name,
-                error.message
-              );
-              console.log("error = ", error);
-              document.getElementById("btnUpdate").style.cursor = "pointer";
+        landuseLayer.on("apply-edits", function() {
+          // Once edits are applied to the layer, remove the Editor from the UI
+          view.ui.remove(editor);
+
+          // Iterate through the features
+          features.forEach(function(feature) {
+            // Reset the template for the feature if it was edited
+            feature.popupTemplate = template;
+          });
+
+          // Open the popup again and reset its content after updates were made on the feature
+          if (features) {
+            view.popup.open({
+              features: features
             });
-        }
+          }
 
-        document.getElementById("btnUpdate").onclick = function() {
-          // Fires feature form's submit event.
-          form.submit();
-        };
-
-        view.ui.add("update", "top-right");
-        view.ui.add("info", {
-          position: "top-left",
-          index: 1
-        });
-          
-          
+          // Cancel the workflow so that once edits are applied, a new popup can be displayed
+          editor.viewModel.cancelWorkflow();
+            });
+                  
         // Add a legend instance to the panel of a
         // ListItem in a LayerList instance
         const layerList = new LayerList({
@@ -313,7 +563,8 @@
                 expandTooltip: "Layer List",
                 view: view,
                 autoCollapse: true,
-                content: layerList.domNode
+                content: layerList.domNode,
+                group: "top-right"
             });
 
         // add layer list button to the top right corner of the view
@@ -335,7 +586,8 @@
             expandTooltip: "Print",
             view: view,
             autoCollapse: true,
-            content: print.domNode
+            content: print.domNode,
+            group: "top-right"
             });
 
         // Add print widget to the top right corner of the view
@@ -360,7 +612,7 @@
           popupEnabled: false,
           sources: [
             {
-              layer: parcels,
+              layer: landuseLayer,
               searchFields: ["APO_ADDRESS"],
               displayField: "APO_ADDRESS",
               exactMatch: false,
@@ -369,7 +621,7 @@
               zoomScale: 24000,
             },
             {
-              layer: parcels,
+              layer: landuseLayer,
               searchFields: ["APN"],
               displayField: "APN",
               exactMatch: false,
@@ -408,26 +660,26 @@
             expandIconClass: "esri-icon-basemap",  // see https://developers.arcgis.com/javascript/latest/guide/esri-icon-font
             expandTooltip: "Toggle Basemap",
             view: view,
-            content: basemapToggle.domNode
+            content: basemapToggle.domNode,
+            group: "bottom-left"
         });
 
         // Add the basemap gallery button
         view.ui.add(bgExpand, "bottom-left"); 
 
-        // add a legend widget instance to the view
-        // and set the style to 'card'. This is a
-        // responsive style, which is good for mobile devices
-        // or 'classic' for PC users
+        // add a legend widget instance to the viewd
         const legend = new Expand({
             expandIconClass: "esri-icon-layer-list",  // see https://developers.arcgis.com/javascript/latest/guide/esri-icon-font
             expandTooltip: "Legend",
             content: new Legend({
                 view: view,
-                style: "classic" // other styles include 'card'
+                style: "card" // other styles include 'card'
                 }),
             view: view,
-            expanded: false
+            expanded: false,
+            group: "bottom-left"
         });
+          
         view.ui.add(legend, "bottom-left");  
 
         const landuseNodes = document.querySelectorAll(`.landuse-item`);
@@ -458,7 +710,7 @@
             content: landuseElement,
             expandTooltip: "Filter Land Use Type",
             expandIconClass: "esri-icon-filter",
-            group: "top-left"
+            group: "top-right"
           });
         
         //clear the filters when user closes the expand widget
@@ -467,7 +719,7 @@
               parcelLayerView.filter = null;
             }
           });
-        view.ui.add(landuseExpand, "top-left");
+        view.ui.add(landuseExpand, "top-right");
         });
           
       var locate = new Locate({
@@ -487,7 +739,7 @@
           symbol: {
             type: "simple-marker",
             size: "12px",
-            color: "green",
+            color: "blue",
             outline: {
               color: "#efefef",
               width: "1.5px"
@@ -498,32 +750,9 @@
       });
 
       view.ui.add(track, "top-left");
-
-      var compass = new Compass({
-          view: view
-        });
-
-      // adds the compass to the top left corner of the MapView
-      view.ui.add(compass, "top-left");
-
-//      var directions = new Directions({
-//        view: view
-//      });
-//          
-//      const directionsExpand = new Expand({
-//        view: view,
-//        content: directions,
-//        expandTooltip: "Get Directions",
-//        expandIconClass: "esri-icon-directions",
-//        group: "top-right"
-//      });
-//        
-//      view.ui.add(directionsExpand, "top-right");
-//          
-      });
+    });
     </script>
   </head>
-
   <body>
     <div id="viewDiv"></div>
     <div id="landuse-filter" class="esri-widget">
@@ -532,18 +761,10 @@
       <div class="landuse-item visible-landuse" data-landuse= " IN ('Commercial', 'Mixed Use', 'Tourist Accommodation')">Commercial</div>
       <div class="landuse-item visible-landuse" data-landuse= " IN ('Open Space', 'Recreation', 'Public Service')">Public</div>
     </div>
-    <div id="info" class="esri-widget">
-      <h3>Select a feature to begin editing</h3>
-    </div>
-
-    <div id="update" class="esri-widget esri-hidden">
-      <div id="form" class="scroller esri-component"></div>
-      <input
-        type="button"
-        class="esri-button"
-        value="Update Land Use"
-        id="btnUpdate"
-      />
+    <div id="gridDiv" class="esri-widget table-expand">
+      <p>Click on a Zoning District to see the Permissable Uses</p>
+      <div id="queryResults"></div>
+      <button id="clearButton" class="esri-widget">Clear</button>
     </div>
   </body>
 </html>
