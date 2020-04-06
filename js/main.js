@@ -73,27 +73,6 @@
               }
             });
           
-        // construct TRPA Boundary layer
-        const trpaLayer = new FeatureLayer({
-          url: "https://maps.trpa.org/server/rest/services/Boundaries/MapServer/0",
-          title: "TRPA Boundary",
-          outFields: ["*"],
-        });
-        // add reginal land use layer to the map
-        map.add(trpaLayer);
-        // set to off in layer list
-        trpaLayer.visible = false;
-        
-        // construct TRPA Boundary layer
-        const countyLayer = new FeatureLayer({
-          url: "https://maps.trpa.org/server/rest/services/Boundaries/MapServer/1",
-          title: "County Boundary",
-          outFields: ["*"],
-        });
-        // add reginal land use layer to the map
-        map.add(countyLayer);
-        // set to off in layer list
-        countyLayer.visible = false;
 
         // construct regional land use layer
         const regionalLayer = new FeatureLayer({
@@ -106,37 +85,7 @@
         // set to off in layer list
         regionalLayer.visible = false;
         
-        
-        // Create the zoning layer, add it to the map, and set it to off
-        const zoningLayer = new FeatureLayer({
-            url:
-            "https://maps.trpa.org/server/rest/services/Zoning/MapServer"
-          ,
-            outFields: ["*"]
-        });
-        map.add(zoningLayer);
-        zoningLayer.visible = false;
-        
-        const zoneLabelClass = new LabelClass({
-              labelExpressionInfo: { expression: "$feature.ZONING_DESCRIPTION" },
-              symbol: {
-                type: "text",  // autocasts as new TextSymbol()
-                color: "black",
-                haloSize: 1,
-                haloColor: "white",
-            font: {  // autocast as new Font()
-               family: "Ubuntu Light",
-               size: 10,
-               style: "italic"
-             }
-              },
-            labelPlacement: "center-center",
-            minScale: 10000
-            });
-
-            zoningLayer.labelingInfo = [ zoneLabelClass ];
-        
-        // create edit action for parcel land use popup
+        // create edit action for land use in parcel popup
         const editThisAction = {
           title: "Edit Land Use",
           id: "edit-this",
@@ -204,11 +153,73 @@
           title: "Impervious Surface - 2010",
           outFields: ["*"],
         });
-        // add reginal land use layer to the map
+        // add impervious surface layer to the map
         map.add(builtLayer);
         // set to off in layer list
         builtLayer.visible = false;
           
+        // construct town center buffer layer
+        const towncenterLayer = new FeatureLayer({
+          url: "https://maps.trpa.org/server/rest/services/STR_Layers/MapServer/13",
+          title: "Town Center - 1/4 Mile Buffer",
+          outFields: ["*"],
+        });
+        // add town center layer to the map
+        map.add(towncenterLayer);
+        // set to off in layer list
+        towncenterLayer.visible = false;
+        
+        // construct transit stop buffer layer
+        const transithalfLayer = new FeatureLayer({
+          url: "https://maps.trpa.org/server/rest/services/STR_Layers/MapServer/11",
+          title: "Transit Stop - 1/2 Mile Walk",
+          outFields: ["*"],
+        });
+        // add town center layer to the map
+        map.add(transithalfLayer);
+        // set to off in layer list
+        transithalfLayer.visible = false;
+          
+        // construct transit stop buffer layer
+        const transitquarterLayer = new FeatureLayer({
+          url: "https://maps.trpa.org/server/rest/services/STR_Layers/MapServer/10",
+          title: "Transit Stop - 1/4 Mile Walk",
+          outFields: ["*"],
+        });
+        // add town center layer to the map
+        map.add(transitquarterLayer);
+        // set to off in layer list
+        transitquarterLayer.visible = false;
+
+        // Create the zoning layer, add it to the map, and set it to off
+        const zoningLayer = new FeatureLayer({
+            url:
+            "https://maps.trpa.org/server/rest/services/Zoning/MapServer"
+          ,
+            outFields: ["*"]
+        });
+        map.add(zoningLayer);
+        zoningLayer.visible = false;
+        
+        const zoneLabelClass = new LabelClass({
+              labelExpressionInfo: { expression: "$feature.ZONING_DESCRIPTION" },
+              symbol: {
+                type: "text",  // autocasts as new TextSymbol()
+                color: "black",
+                haloSize: 1,
+                haloColor: "white",
+            font: {  // autocast as new Font()
+               family: "Ubuntu Light",
+               size: 10,
+               style: "italic"
+             }
+              },
+            labelPlacement: "center-center",
+            minScale: 10000
+            });
+
+            zoningLayer.labelingInfo = [ zoneLabelClass ];
+        
         // create grid expand
         const gridExpand = new Expand({
           expandTooltip: "Show Zoning",

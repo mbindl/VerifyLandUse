@@ -104,17 +104,19 @@ body,
     vertical-align:middle;
     text-align:center;
 }
-
+.title{
+    align-content: center;
+}
 .message {
-    border:2px solid #e9faff;
-    border-radius: 10px;
-    background: #999696;
+    border:2px solid #6e6e6e;
+    border-radius: 4px;
+    background: #fff;
     display:inline-block;
     vertical-align:middle;
     width:50%;
-    text-align:left;
+    text-align:center;
     font-family: "Avenir Next W00";
-    color: white;
+    color: #6e6e6e;
     padding:10px;
 }
 
@@ -136,14 +138,14 @@ body,
     position:absolute;
     top:-999em;
     right:20px;
-    border:2px solid #e9faff;
+    border:1px solid #6e6e6e;
     border-radius: 2px;
-    background: #999696;
+    background: #fff;
     display:inline-block;
     text-align:middle;
     font-family: "Avenir Next W00";
 	opacity:0;
-	color:#e9faff;
+	color:#6e6e6e;
 	padding:2px;
 	font-size:100%;
 	z-index:2;
