@@ -20,7 +20,12 @@
         "esri/Graphic",
         "esri/widgets/Editor",
         "esri/layers/support/LabelClass",
-        "dgrid/Grid"  
+        "esri/geometry/SpatialReference",
+        "dgrid/OnDemandGrid",
+        "dgrid/extensions/ColumnHider",
+        "dojo/store/Memory",
+        "dstore/legacy/StoreAdapter",
+        "dgrid/Selection"
       ], function(
         esriConfig,
         Map,
@@ -43,15 +48,26 @@
         Graphic,
         Editor,
         LabelClass,
-        Grid
+        SpatialReference,
+        OnDemandGrid, 
+        ColumnHider, 
+        Memory, 
+        StoreAdapter, 
+        Selection,
       ) {
           {
         esriConfig.portalUrl = "https://maps.trpa.org/portal";
             };
           
         // Initialize variables
-        let highlight, editFeatureparcelLayerView, editor, features, grid;
+        let highlight, editFeatureparcelLayerView, editor, features, landuseLayerView, grid;
         
+        const gridDiv = document.getElementById("grid");
+        const infoDiv = document.getElementById("info");
+
+        // create new map, view and csvlayer
+        const gridFields = ["OBJECTID", "APN", "JURISDICTION", "OWN_FULL", "OWNERSHIP_TYPE","COUNTY_LANDUSE_DESCRIPTION", "TRPA_LANDUSE_DESCRIPTION", "IMPERVIOUS_SURFACE_SQFT", "AS_SUM", "UNITS"
+        ];
         // create the map instance
         var map = new Map({
             basemap: "topo-vector",
@@ -191,157 +207,186 @@
         // set to off in layer list
         transitquarterLayer.visible = false;
 
-        // Create the zoning layer, add it to the map, and set it to off
-        const zoningLayer = new FeatureLayer({
-            url:
-            "https://maps.trpa.org/server/rest/services/Zoning/MapServer"
-          ,
-            outFields: ["*"]
+        
+        // create a new datastore for the on demandgrid
+        // will be used to display attributes of selected features
+        const dataStore = new StoreAdapter({
+          objectStore: new Memory({
+            idProperty: "OBJECTID"
+          })
         });
-        map.add(zoningLayer);
-        zoningLayer.visible = false;
-        
-        const zoneLabelClass = new LabelClass({
-              labelExpressionInfo: { expression: "$feature.ZONING_DESCRIPTION" },
-              symbol: {
-                type: "text",  // autocasts as new TextSymbol()
-                color: "black",
-                haloSize: 1,
-                haloColor: "white",
-            font: {  // autocast as new Font()
-               family: "Ubuntu Light",
-               size: 10,
-               style: "italic"
-             }
-              },
-            labelPlacement: "center-center",
-            minScale: 10000
-            });
+        /****************************************************
+         * Selects features from the layer that intersect
+         * a polygon that user drew using sketch view model
+         ****************************************************/
+        function popGrid() {
+          view.graphics.removeAll();
+          if (landuseLayerView) {
+            const query = {
+              where: "1=1",
+              outFields: ["*"]
+            };
 
-            zoningLayer.labelingInfo = [ zoneLabelClass ];
+            // query graphics from the layer view. Geometry set for the query
+            // can be polygon for point features and only intersecting geometries are returned
+            landuseLayerView.queryFeatures(query).then(function(results) {
+                const graphics = results.features;
+                // if the grid div is displayed while query results does not
+                // return graphics then hide the grid div and show the instructions div
+                if (graphics.length > 0) {
+                  gridDiv.style.zIndex = 90;
+                  infoDiv.style.zIndex = 80;
+                  document.getElementById("featureCount").innerHTML =
+                    "<b>Showing attributes for " +
+                    graphics.length.toString() + " features </b>"
+                } else {
+                  gridDiv.style.zIndex = 80;
+                  infoDiv.style.zIndex = 90;
+                }
+
+                // get the attributes to display in the grid
+                const data = graphics.map(function(feature, i) {
+                  return Object.keys(feature.attributes)
+                    .filter(function(key) {
+                      // get fields that exist in the grid
+                      return (gridFields.indexOf(key) !== -1);
+                    })
+                    // need to create key value pairs from the feature
+                    // attributes so that info can be displayed in the grid
+                    .reduce(function(obj, key) {
+                      obj[key] = feature.attributes[key];
+                      return obj;
+                    }, {});
+                });
+
+                // set the datastore for the grid using the
+                // attributes we got for the query results
+                dataStore.objectStore.data = data;
+                grid.set("collection", dataStore);
+              })
+              .catch(errorCallback);
+          }
+        }
+        /************************************************
+         * fires when user clicks a row in the grid
+         * get the corresponding graphic and select it
+         *************************************************/
+        function selectFeatureFromGrid(event) {
+          // close view popup if it is open
+          view.popup.close();
+          // get the ObjectID value from the clicked row
+          const row = event.rows[0]
+          const id = row.data.OBJECTID;
+
+          // setup a query by specifying objectIds
+          const query = {
+            objectIds: [parseInt(id)],
+            outFields: ["*"],
+            returnGeometry: true,
+            outSpatialReference: view.SpatialReference
+          };
+
+          // query the csvLayerView using the query set above
+          landuseLayerView.queryFeatures(query).then(function(results) {
+              const graphics = results.features;
+              // remove all graphics to make sure no selected graphics
+              view.graphics.removeAll();
+              view.goTo(graphics[0].geometry);
+
+              // create a new selected graphic
+              const selectedGraphic = new Graphic({
+                geometry: graphics[0].geometry,
+                symbol: {
+                  type: "simple-marker",
+//                  style: "circle",
+                  color: "orange",
+                  size: "12px", // pixels
+                  outline: { // autocasts as new SimpleLineSymbol()
+                    color: [255, 255, 0],
+                    width: 2 // points
+                  }
+                }
+              });
+
+              // add the selected graphic to the view
+              // this graphic corresponds to the row that was clicked
+              view.graphics.add(selectedGraphic);
+            })
+            .catch(errorCallback);
+        }
+
+        /************************************************
+         * Creates a new grid. Loops through layer 
+         * fields and creates grid columns
+         * Grid with selection and columnhider extensions
+         *************************************************/
+        function createGrid(fields) {
+          var columns = fields.filter(function(field, i) {
+            if (gridFields.indexOf(field.name) !== -1) {
+              return field;
+            }
+              
+          }).map(function(field) {
+            if (field.name === "APN" || field.name === "JURISDICTION" || field.name === "OWNERSHIP_TYPE"|| field.name === "TRPA_LANDUSE_DESCRIPTION") {
+              return {
+                field: field.name,
+                label: field.alias,
+                sortable: true,
+                hidden: false
+              };
+            } else {
+              return {
+                field: field.name,
+                label: field.alias,
+                sortable: true,
+                hidden: true
+              };
+            }
+          });
+
+          // create a new onDemandGrid with its selection and columnhider
+          // extensions. Set the columns of the grid to display attributes
+          // the hurricanes cvslayer
+          grid = new(OnDemandGrid.createSubclass([Selection, ColumnHider]))({
+            columns: columns
+          }, "grid");
+
+          // add a row-click listener on the grid. This will be used
+          // to highlight the corresponding feature on the view
+          grid.on("dgrid-select", selectFeatureFromGrid);
+        }
         
+        function errorCallback(error) {
+          console.log("error:", error)
+        }
+        
+        // create a grid with given columns once the layer is loaded
+        landuseLayer.when(function () {
+            // create a grid with columns specified in gridFields variable
+            createGrid(landuseLayer.fields);
+
+            // get a reference the landuselayerview when it is ready.
+            view.whenLayerView(landuseLayer).then(function (layerView) {
+              landuseLayerView = layerView;
+                //wait for the layerview to be done updating
+              landuseLayerView.watch("updating", function(bool){
+                if(!bool){
+                  popGrid();
+                }
+              })
+            });
+          })
+          .catch(errorCallback);
+
         // create grid expand
         const gridExpand = new Expand({
-          expandTooltip: "Show Zoning",
+          expandTooltip: "Show Attribute Table",
           expanded: false,
           view: view,
           content: document.getElementById("gridDiv"),
           expandIconClass: "esri-icon-table",
           group: "bottom-right"
-        });
-
-        // Add grid expand to the view
-        view.ui.add(gridExpand, "bottom-right");
-
-        // call clearMap method when clear is clicked
-        const clearbutton = document.getElementById("clearButton");
-        clearbutton.addEventListener("click", clearMap);
-
-        zoningLayer.load().then(function() {
-          return createGrid().then(function(g) {
-            grid = g;
-          });
-        });
-
-        view.on("click", function(event) {
-          clearMap();
-          queryFeatures(event);
-        });
-
-        function queryFeatures(screenPoint) {
-          const point = view.toMap(screenPoint);
-
-          // Query the layer for the feature ids where the user clicked
-          zoningLayer
-            .queryObjectIds({
-              geometry: point,
-              spatialRelationship: "intersects",
-              returnGeometry: false,
-              outFields: ["*"]
-            })
-
-            .then(function(objectIds) {
-              if (!objectIds.length) {
-                return;
-              }
-
-              // Highlight the area returned from the first query
-              view.whenLayerView(zoningLayer).then(function(layerView) {
-                if (highlight) {
-                  highlight.remove();
-                }
-                highlight = layerView.highlight(objectIds);
-              });
-
-              // Query the for the related features for the features ids found
-              return zoningLayer.queryRelatedFeatures({
-                outFields: ["Category", "Use_Type", "Density", "Unit", "Notes"],
-                relationshipId: zoningLayer.relationships[0].id,
-                objectIds: objectIds
-              });
-            })
-
-            .then(function(relatedFeatureSetByObjectId) {
-              if (!relatedFeatureSetByObjectId) {
-                return;
-              }
-              // Create a grid with the data
-              Object.keys(relatedFeatureSetByObjectId).forEach(function(
-                objectId
-              ) {
-                // get the attributes of the FeatureSet
-                const relatedFeatureSet = relatedFeatureSetByObjectId[objectId];
-                const rows = relatedFeatureSet.features.map(function(feature) {
-                  return feature.attributes;
-                });
-
-                if (!rows.length) {
-                  return;
-                }
-
-                // create a new div for the grid of related features
-                // append to queryResults div inside of the gridDiv
-                const gridDiv = document.createElement("div");
-                const results = document.getElementById("queryResults");
-                results.appendChild(gridDiv);
-
-                // destroy current grid if exists
-                if (grid) {
-                  grid.destroy();
-                }
-                // create new grid to hold the results of the query
-                grid = new Grid(
-                  {
-                    columns: {
-                        Category: "Category",
-                        Use_Type: "Use",
-                        Density: "Density",
-                        Unit: "Unit",
-                        Notes: "Notes"
-                        }
-                  },
-                  gridDiv
-                );
-
-                // add the data to the grid
-                grid.renderArray(rows);
-              });
-              clearbutton.style.display = "inline";
-            })
-            .catch(function(error) {
-              console.error(error);
-            });
-        }
-
-        function clearMap() {
-          if (highlight) {
-            highlight.remove();
-          }
-          if (grid) {
-            grid.destroy();
-          }
-          clearbutton.style.display = "none";
-        }       
+        });  
 
         // create the editor when a parcel popup edit action button is clicked
         view.when(function() {
@@ -675,4 +720,7 @@
       });
 
       view.ui.add(track, "top-left");
+        
+    // Add grid expand to the view
+    view.ui.add(gridExpand, "bottom-right");
     });

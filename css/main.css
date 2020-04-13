@@ -61,19 +61,14 @@ body,
 .esri-view .esri-component.esri-attribution {
     position: fixed;
     }
-
 #gridDiv {
     padding: 10px;
-    max-width: 600px;
-      }
-
-#clearButton {
-    margin-top: 5px;
-    display: none;
+    max-width: 1000px;
+    min-height: 200px;
       }
 
 .table-expand{
-    width: 700px;
+    width: 800px;
         }
 
 .dgrid {
@@ -82,9 +77,31 @@ body,
 
 .dgrid .dgrid-scroller {
     position: relative;
-    max-height: 150px;
+    max-height: 200px;
+    min-height: 200px;
     overflow: auto;
       }
+  #infoDiv {
+    position: absolute;
+    top: 15px;
+    left: 60px;
+  }
+  #infoDiv input {
+    border: none;
+    box-shadow: rgba(0, 0, 0, 0.3) 0px 1px 2px;
+  }
+
+  .esri-widget--button.active,
+  .esri-widget--button.active:hover,
+  .esri-widget--button.active:focus {
+    cursor: default;
+    background-color: #999696;
+  }
+  .esri-widget--button.active path,
+  .esri-widget--button.active:hover path,
+  .esri-widget--button.active:focus path {
+    fill: #e4e4e4;
+  }
 
 .overlay {
     opacity:0;
