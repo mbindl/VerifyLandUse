@@ -78,7 +78,7 @@
               map: map,  // The WebMap instance created above
               container: "viewDiv",
               center: [-120.01,38.92],
-              zoom: 13,
+              zoom: 14,
               // set all popups to dock in the bottom right
               popup: {
                 dockEnabled: true,
