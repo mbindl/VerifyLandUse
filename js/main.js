@@ -297,13 +297,12 @@
               const selectedGraphic = new Graphic({
                 geometry: graphics[0].geometry,
                 symbol: {
-                  type: "simple-marker",
-//                  style: "circle",
-                  color: "orange",
-                  size: "12px", // pixels
-                  outline: { // autocasts as new SimpleLineSymbol()
-                    color: [255, 255, 0],
-                    width: 2 // points
+                  type: "simple-fill",
+                  color: [130, 194, 232, 0.4],
+                  style: "solid",
+                  outline: {  // autocasts as new SimpleLineSymbol()
+                    color:[130, 194, 232, 0.4],
+                    width: 3
                   }
                 }
               });
